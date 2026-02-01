@@ -13,22 +13,25 @@ function Bot() {
     },[messages])
 
     const handleSendMessage = async () => {
+        if(!input.trim()) {
+            setInput("");
+            return;
+        }
         setLoading(true);
-        if(!input.trim()) return;
         try {
            const res=await axios.post("http://localhost:4002/bot/v1/message",{
                 text: input
             })
             if(res.status === 200) {
-                setMessages([...messages, { text: res.data.userMessage, sender: 'user' }, { text: res.data.botMessage, sender: 'bot' }]);
-               
+                setMessages(prev => [...prev, { text: res.data.userMessage, sender: 'user' }, { text: res.data.botMessage, sender: 'bot' }]);
             }
             console.log(res.data)
         } catch (error) {
             console.log("Error sending message:", error);
-        }
-         setInput("");
+        } finally {
+            setInput("");
             setLoading(false);
+        }
     }
 
     const handleKeyPress = (e) => {
