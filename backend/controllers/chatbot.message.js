@@ -52,9 +52,80 @@ export const Message=async(req,res)=>{
 
 }
 
-const normalizedText = text.toLowerCase().trim();
+// Normalize helper (lowercase, remove punctuation, collapse whitespace)
+const normalize = (s) => s.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
 
-const botResponse = botResponses[normalizedText] || "Sorry, I don't understand that!!!";
+// Levenshtein distance for fuzzy matching
+const levenshtein = (a, b) => {
+  const an = a ? a.length : 0;
+  const bn = b ? b.length : 0;
+  if (an === 0) return bn;
+  if (bn === 0) return an;
+  const matrix = Array.from({ length: an + 1 }, () => Array(bn + 1).fill(0));
+  for (let i = 0; i <= an; i++) matrix[i][0] = i;
+  for (let j = 0; j <= bn; j++) matrix[0][j] = j;
+  for (let i = 1; i <= an; i++) {
+    for (let j = 1; j <= bn; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost
+      );
+    }
+  }
+  return matrix[an][bn];
+};
+
+const normalizedInput = normalize(text);
+let botResponse = null;
+
+// 1) Exact match
+for (const [key, val] of Object.entries(botResponses)) {
+  if (normalizedInput === normalize(key)) {
+    botResponse = val;
+    break;
+  }
+}
+
+// 2) Substring match
+if (!botResponse) {
+  for (const [key, val] of Object.entries(botResponses)) {
+    const normKey = normalize(key);
+    if (normalizedInput.includes(normKey) || normKey.includes(normalizedInput)) {
+      botResponse = val;
+      break;
+    }
+  }
+}
+
+// 3) Token overlap (>=50%)
+if (!botResponse) {
+  const inTokens = new Set(normalizedInput.split(' '));
+  for (const [key, val] of Object.entries(botResponses)) {
+    const keyTokens = normalize(key).split(' ');
+    const intersection = keyTokens.filter(t => inTokens.has(t)).length;
+    if (keyTokens.length > 0 && intersection / keyTokens.length >= 0.5) {
+      botResponse = val;
+      break;
+    }
+  }
+}
+
+// 4) Fuzzy match (Levenshtein within 30% of key length or <=2)
+if (!botResponse) {
+  for (const [key, val] of Object.entries(botResponses)) {
+    const normKey = normalize(key);
+    const dist = levenshtein(normalizedInput, normKey);
+    const threshold = Math.max(2, Math.floor(normKey.length * 0.3));
+    if (dist <= threshold) {
+      botResponse = val;
+      break;
+    }
+  }
+}
+
+if (!botResponse) botResponse = "Sorry, I don't understand that!!!";
 
 const bot = await Bot.create({
     text: botResponse

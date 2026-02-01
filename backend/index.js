@@ -13,17 +13,24 @@ const port =process.env.PORT || 3000
 app.use(express.json());
 app.use(cors())
 
-//Database Connection code
-mongoose.connect(process.env.MONGO_URI)
-.then(()=>{
-    console.log("Connected to MongoDB")
-}).catch((error)=>{
-    console.log("Error connecting to MongoDB:", error)
-})
+// Database Connection code (skip auto-connecting during tests — tests use in-memory DB)
+if (process.env.NODE_ENV !== 'test') {
+  mongoose.connect(process.env.MONGO_URI)
+  .then(()=>{
+      console.log("Connected to MongoDB")
+  }).catch((error)=>{
+      console.log("Error connecting to MongoDB:", error)
+  })
+}
 
 // Defining Routes
 app.use("/bot/v1/", chatbotRoutes)
 
-app.listen(port, () => {
-  console.log(`Server is Running on Port ${port}`)
-})
+// Only start server when not running tests
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(port, () => {
+    console.log(`Server is Running on Port ${port}`)
+  })
+}
+
+export default app;
